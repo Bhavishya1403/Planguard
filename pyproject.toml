@@ -1,0 +1,52 @@
+[build-system]
+requires = ["setuptools==80.9.0", "wheel==0.45.1"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "planguard"
+version = "0.1.0"
+description = "A measured, self-verifying PostgreSQL migration safety gate"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [{name = "PlanGuard contributors"}]
+dependencies = [
+  "pglast==7.10",
+  "psycopg[binary]==3.2.10",
+  "typer==0.19.2",
+  "rich==14.1.0",
+  "pydantic==2.11.9",
+  "PyYAML==6.0.3",
+  "numpy==2.3.3",
+  "matplotlib==3.10.6",
+]
+
+[project.optional-dependencies]
+dev = ["pytest==8.4.2", "pytest-cov==7.0.0", "ruff==0.13.2", "mypy==1.18.2", "types-PyYAML==6.0.12.20250915"]
+integration = ["pytest==8.4.2"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers"
+markers = ["integration: requires PostgreSQL or a container runtime"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+mypy_path = "src"
+packages = ["planguard"]
+
+[[tool.mypy.overrides]]
+module = ["pglast.*", "matplotlib.*", "numpy.*"]
+ignore_missing_imports = true
