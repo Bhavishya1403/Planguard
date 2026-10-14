@@ -1,26 +1,59 @@
 # Build status
 
-Phase 0 is verified in the repository's `.venv` using Python 3.12.15. No later
-phase has been started.
+Phase 0 remains verified. Phase 1 runtime and seeding code is implemented, but
+the phase is **not fully verified** because the PostgreSQL integration test
+could not run against a live server in this environment.
 
-## Verified in phase 0
+## Phase 0 evidence
 
-- `./.venv/bin/python -m pip install -e '.[dev]'` completed successfully. It installed the project and all declared runtime and development dependencies into `.venv`.
-- The configured `pglast==7.10` pin exists and installed successfully as a CPython 3.12 manylinux wheel. The import reports `pglast v7.10`.
-- `./.venv/bin/python -m pip check` reported `No broken requirements found`.
-- `make test lint format-check typecheck` passed:
-  - Unit tests: **11 passed**.
-  - Ruff lint: **All checks passed**.
-  - Ruff formatting: **14 files already formatted**.
-  - Strict mypy: **Success: no issues found in 12 source files**.
-- The phase 0 package scaffold, configuration validation, shared Pydantic result models, README setup stub, and unit tests are present.
-- Ruff and mypy target Python 3.12, and Makefile tooling commands use `.venv/bin/python` by default.
+- The editable install and pinned `pglast==7.10` installation succeeded in
+  `.venv` using Python 3.12.15.
+- `./.venv/bin/python -m pip check` reported no broken requirements.
+- Phase 0 checks passed: 11 unit tests, Ruff lint, Ruff formatting, and strict
+  mypy across the original 12 source files.
 
-The first install attempt from the default restricted command environment failed at DNS resolution for PyPI. This was an environment networking restriction, not a missing package: the subsequent `.venv` install succeeded, and the exact `pglast` pin was downloaded and imported.
+## Phase 1 implementation
+
+- PostgreSQL containers are launched and cleaned up through bounded subprocess
+  calls. Automatic runtime selection prefers Podman, with Docker as the
+  fallback; callers can explicitly select either runtime.
+- Server selection accepts a caller-supplied `--dsn` value before
+  `PLANGUARD_DSN`. The supplied DSN is a bootstrap connection. Each experiment
+  uses a generated temporary database, optionally cloned from a template.
+- Database identifiers are validated and quoted. Catalog filters and inserted
+  values are parameterized. Temporary cleanup runs only after that object
+  successfully creates its database.
+- Schema inspection reads defaults, identity/generated columns, enum values,
+  character lengths, and numeric bounds. Synthetic profiles cover common
+  PostgreSQL types, use discovered enum labels, and refuse unsupported
+  non-nullable types rather than guessing.
+- Database-free unit coverage exercises runtime selection and lifecycle calls,
+  DSN precedence, identifier and ownership safety, and synthetic profile
+  generation. PostgreSQL integration coverage creates, seeds, clones, and
+  removes isolated databases.
+- No analyzer rules, workload measurement, or later-phase features were added.
+  The package still has no console entry point; the existing design decision is
+  to add it when a working `planguard.cli` module is introduced.
+
+## Phase 1 verification evidence
+
+- `make test`: **47 passed, 1 deselected** (the deselected test is marked
+  integration).
+- `make lint`: **All checks passed**.
+- `make format-check`: **20 files already formatted**.
+- `make typecheck`: **Success: no issues found in 15 source files**.
+- `make test-integration`: **1 skipped, 47 deselected**. No integration test
+  ran against PostgreSQL. The Podman executable is present, but `podman run`
+  fails before container creation because its setup cannot set the sticky bit
+  on `/run/user/1000/libpod` (`read-only file system`). Docker is unavailable,
+  and neither `PLANGUARD_TEST_DSN` nor `PLANGUARD_DSN` is configured.
+- The schema-introspection SQL was also accepted by the installed `pglast`
+  parser. This validates syntax only; it does not replace PostgreSQL execution.
 
 ## Not verified or not implemented
 
-- The `planguard` CLI is not implemented yet, so `planguard analyze` and the end-to-end user workflow are not available. The console script is intentionally not declared until its module exists.
-- Phase 1 and later components have not been started: PostgreSQL runtime and external-DSN handling, seeding, analyzer rules, workload and lock sampling, experiment harness, plan diffs, reports, rewrites, scaling, integrations, benchmark scenarios, and final documentation.
-- No PostgreSQL integration test or benchmark was run. There are no measured results, and `docs/RESULTS.md` has not been generated.
-- Unit coverage in this phase exercises configuration and shared models only; it does not establish behavior of any database-facing component.
+- Live PostgreSQL integration remains unverified. No integration test has
+  passed against PostgreSQL.
+- No analyzer rules, workload measurement, plan diffing, reports, rewrites,
+  scaling, integrations, or benchmark scenarios have been implemented.
+- No benchmark results are available.
