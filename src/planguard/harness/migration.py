@@ -23,6 +23,47 @@ class MigrationExecutionResult(BaseModel):
     error_message: str | None = None
 
 
+def execute_migration_on_dsn(
+    database_dsn: str,
+    migration_path: Path,
+    *,
+    statement_timeout_ms: int = 10_000,
+) -> MigrationExecutionResult:
+    """Run a SQL migration against a database DSN supplied by the caller.
+
+    The caller is responsible for ensuring the database is isolated and
+    disposable. This function never creates or drops a database.
+    """
+    if statement_timeout_ms < 1:
+        raise ValueError("statement_timeout_ms must be positive")
+
+    source = migration_path.read_text(encoding="utf-8")
+    started = monotonic()
+
+    try:
+        with connect(
+            database_dsn,
+            autocommit=True,
+            statement_timeout_ms=statement_timeout_ms,
+        ) as connection:
+            if source.strip():
+                connection.execute(source, prepare=False)
+    except (psycopg.Error, ValueError) as error:
+        return MigrationExecutionResult(
+            migration_name=migration_path.name,
+            success=False,
+            duration_seconds=monotonic() - started,
+            error_type=type(error).__name__,
+            error_message=str(error).splitlines()[0][:500],
+        )
+
+    return MigrationExecutionResult(
+        migration_name=migration_path.name,
+        success=True,
+        duration_seconds=monotonic() - started,
+    )
+
+
 def execute_migration(
     server_dsn: str,
     migration_path: Path,

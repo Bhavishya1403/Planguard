@@ -87,3 +87,66 @@ def test_nonpositive_statement_timeout_is_rejected(tmp_path: Path) -> None:
             migration,
             statement_timeout_ms=0,
         )
+
+
+def test_migration_on_dsn_succeeds_without_creating_database(
+    tmp_path: Path,
+) -> None:
+    from planguard.harness.migration import execute_migration_on_dsn
+
+    migration = tmp_path / "create_table.sql"
+    migration.write_text("CREATE TABLE example (id integer);", encoding="utf-8")
+
+    connection = MagicMock()
+    connection_context = MagicMock()
+    connection_context.__enter__.return_value = connection
+
+    with (
+        patch("planguard.harness.migration.TemporaryDatabase") as temp_class,
+        patch(
+            "planguard.harness.migration.connect",
+            return_value=connection_context,
+        ) as connect_mock,
+    ):
+        result = execute_migration_on_dsn(
+            "host=127.0.0.1 dbname=planguard_trial",
+            migration,
+        )
+
+    assert result.success is True
+    assert result.migration_name == "create_table.sql"
+    temp_class.assert_not_called()
+    connect_mock.assert_called_once_with(
+        "host=127.0.0.1 dbname=planguard_trial",
+        autocommit=True,
+        statement_timeout_ms=10_000,
+    )
+    connection.execute.assert_called_once_with(
+        "CREATE TABLE example (id integer);",
+        prepare=False,
+    )
+
+
+def test_migration_on_dsn_reports_sql_failure(tmp_path: Path) -> None:
+    from planguard.harness.migration import execute_migration_on_dsn
+
+    migration = tmp_path / "broken.sql"
+    migration.write_text("THIS IS NOT SQL;", encoding="utf-8")
+
+    connection_context = MagicMock()
+    connection_context.__enter__.side_effect = psycopg.ProgrammingError(
+        "synthetic migration failure"
+    )
+
+    with patch(
+        "planguard.harness.migration.connect",
+        return_value=connection_context,
+    ):
+        result = execute_migration_on_dsn(
+            "host=127.0.0.1 dbname=planguard_trial",
+            migration,
+        )
+
+    assert result.success is False
+    assert result.error_type == "ProgrammingError"
+    assert result.error_message == "synthetic migration failure"
