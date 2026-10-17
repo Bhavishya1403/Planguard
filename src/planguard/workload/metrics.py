@@ -15,7 +15,8 @@ class WorkloadResult(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    operation_count: int = Field(ge=0)
+    attempted_operations: int = Field(ge=0)
+    successful_operations: int = Field(ge=0)
     elapsed_seconds: float = Field(ge=0)
     throughput_ops_per_second: float = Field(ge=0)
     latency_p50_ms: float = Field(ge=0)
@@ -64,7 +65,8 @@ def measure_workload(
     successful = operation_count - errors
 
     return WorkloadResult(
-        operation_count=successful,
+        attempted_operations=operation_count,
+        successful_operations=successful,
         elapsed_seconds=elapsed,
         throughput_ops_per_second=successful / elapsed if elapsed > 0 else 0.0,
         latency_p50_ms=_percentile(latencies_ms, 0.50),
