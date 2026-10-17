@@ -21,6 +21,9 @@ dependencies = [
   "matplotlib==3.10.6",
 ]
 
+[project.scripts]
+planguard = "planguard.cli:main"
+
 [project.optional-dependencies]
 dev = ["pytest==8.4.2", "pytest-cov==7.0.0", "ruff==0.13.2", "mypy==1.18.2", "types-PyYAML==6.0.12.20250915"]
 integration = ["pytest==8.4.2"]
